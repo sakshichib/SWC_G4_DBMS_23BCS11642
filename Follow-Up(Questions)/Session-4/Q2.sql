@@ -1,53 +1,36 @@
-WITH RECURSIVE dates AS (
-    SELECT DATE '2025-04-15' AS transaction_date
+WITH valid_tasks AS (
+    SELECT DISTINCT
+        task_id,
+        start_time,
+        end_time
+    FROM task_schedule
+    WHERE start_time IS NOT NULL
+      AND end_time IS NOT NULL
+),
+
+events AS (
+    SELECT
+        start_time AS event_time,
+        1 AS cpu_change,
+        2 AS event_order
+    FROM valid_tasks
 
     UNION ALL
 
-    SELECT transaction_date + 1
-    FROM dates
-    WHERE transaction_date < DATE '2025-04-28'
+    SELECT
+        end_time AS event_time,
+        -1 AS cpu_change,
+        1 AS event_order
+    FROM valid_tasks
 ),
 
-purchases AS (
+running_total AS (
     SELECT
-        transaction_id,
-        DATE(transaction_date) AS purchase_date,
-        amount
-    FROM product_sales
-    WHERE product_id = 'PROD-2891'
-      AND country = 'US'
-      AND status = 'completed'
-      AND type = 'purchase'
-      AND DATE(transaction_date)
-            BETWEEN DATE '2025-04-15' AND DATE '2025-04-28'
-),
-
-daily_txns AS (
-
-    -- Purchases add revenue
-    SELECT
-        purchase_date AS transaction_date,
-        amount AS revenue
-    FROM purchases
-
-    UNION ALL
-
-    -- Refunds subtract revenue
-    SELECT
-        DATE(r.transaction_date) AS transaction_date,
-        -r.amount AS revenue
-    FROM product_sales r
-    JOIN purchases p
-      ON r.original_transaction_id = p.transaction_id
-    WHERE r.type = 'refund'
-      AND r.status = 'completed'
+        SUM(cpu_change) OVER (
+            ORDER BY event_time, event_order
+        ) AS cpus_in_use
+    FROM events
 )
 
-SELECT
-    d.transaction_date,
-    COALESCE(SUM(dt.revenue), 0) AS daily_net_revenue
-FROM dates d
-LEFT JOIN daily_txns dt
-    ON d.transaction_date = dt.transaction_date
-GROUP BY d.transaction_date
-ORDER BY d.transaction_date;
+SELECT MAX(cpus_in_use) AS minimum_cpus_required
+FROM running_total;
