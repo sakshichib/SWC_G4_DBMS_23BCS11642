@@ -1,3 +1,6 @@
+-- Questions link
+-- https://datalemur.com/questions/sql-avg-review-ratings
+
 -- SELECT * FROM user_transactions;
 WITH yearly_spend AS (
     SELECT
